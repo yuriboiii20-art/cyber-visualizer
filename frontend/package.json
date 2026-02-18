@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "author": "YAKHOOB AHMED SHARIFF",
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
