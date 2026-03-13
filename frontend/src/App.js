@@ -1,7 +1,7 @@
 // frontend/src/App.js
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
-import { supabase } from "./supabaseClient";
+
 import GlobePanel from "./GlobePanel";
 import LeftHeatmap from "./components/LeftHeatmap";
 
@@ -99,97 +99,29 @@ function ThreatBadge({ score }) {
         {score === 0
           ? "System idle. Waiting for attack events..."
           : score < 40
-          ? "Low activity detected."
-          : score < 75
-          ? "Elevated hostile activity detected."
-          : "CRITICAL: High volume of hostile activity!"}
+            ? "Low activity detected."
+            : score < 75
+              ? "Elevated hostile activity detected."
+              : "CRITICAL: High volume of hostile activity!"}
       </div>
     </div>
   );
 }
 
-// Simple cluster panel
-function ClusterPanel({ clusters = [] }) {
-  if (!clusters || clusters.length === 0) {
-    return (
-      <div style={{ marginTop: 8, fontSize: 13, opacity: 0.8 }}>
-        No clusters detected.
-      </div>
-    );
-  }
-  return (
-    <div style={{ marginTop: 8 }}>
-      {clusters.map((c, idx) => (
-        <div
-          key={idx}
-          style={{
-            marginBottom: 10,
-            padding: "8px 10px",
-            borderRadius: 10,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{c.title}</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>{c.subtitle}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{c.count}</div>
-              <div style={{ fontSize: 11, opacity: 0.75 }}>
-                {c.severitySummary}
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-            First seen: {new Date(c.firstSeen).toLocaleTimeString()} • Last
-            seen: {new Date(c.lastSeen).toLocaleTimeString()}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
-// Timeline sparkline (not used by default—the UI uses numbers box)
-function TimelineSparkline({ data = [], width = 260, height = 46 }) {
-  const max = Math.max(...data, 1);
-  const min = 0;
-  const points = data
-    .map((v, i) => {
-      const x = (i / Math.max(1, data.length - 1)) * width;
-      const y = height - ((v - min) / (max - min || 1)) * height;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <rect x="0" y="0" width={width} height={height} fill="transparent" />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="#22c55e"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 // ----------------------- Main App -----------------------
 export default function App() {
   // UI states
   const [events, setEvents] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-const [filteredEvents, setFilteredEvents] = useState([]);
-  
+  const [filteredEvents, setFilteredEvents] = useState([]);
+
   const [threatScore, setThreatScore] = useState(0);
   const [totalAttacks, setTotalAttacks] = useState(0);
   const [criticalCount, setCriticalCount] = useState(0);
   const [highCount, setHighCount] = useState(0);
-  
+
 
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -211,7 +143,7 @@ const [filteredEvents, setFilteredEvents] = useState([]);
   const THREAT_DECAY_PER_TICK = 3;
   const THREAT_DECAY_INTERVAL_MS = 1000;
 
-  // Supabase auth handler (unchanged semantics)
+  // Dummy auth handler
   const handleAuth = async ({ email, password, mode }) => {
     email = (email || "").trim();
     password = (password || "").trim();
@@ -219,24 +151,9 @@ const [filteredEvents, setFilteredEvents] = useState([]);
     setAuthError("");
 
     try {
-      if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (signUpError) throw signUpError;
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) throw signInError;
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-      }
+      // Simulate network request
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       setIsAuthenticated(true);
     } catch (err) {
       console.error("Auth error:", err);
@@ -406,51 +323,74 @@ const [filteredEvents, setFilteredEvents] = useState([]);
 
   // --- helpers for cluster cards ---
 
-const severityOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+  const severityOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
-function getClusterSeverity(sevCounts = {}) {
-  for (const level of severityOrder) {
-    if ((sevCounts[level] || 0) > 0) return level;
-  }
-  return "LOW";
-}
-
-function formatClusterTime(ts) {
-  if (!ts) return "Unknown";
-  const d = new Date(ts);
-  // HH:MM:SS
-  return d.toTimeString().slice(0, 8);
-}
-
-function summarizeAttackTypes(cluster) {
-  if (!cluster || !Array.isArray(cluster.events)) return "Multiple attack types";
-  const counts = {};
-  for (const ev of cluster.events) {
-    const name = ev.attackType || ev.type || "Attack";
-    counts[name] = (counts[name] || 0) + 1;
-  }
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3) // top 3 types
-    .map(([name]) => name)
-    .join(", ");
-}
-
- // ---------------------- SEARCH FILTER FOR EVENTS ----------------------
-useEffect(() => {
-  if (!searchQuery.trim()) {
-    // No search -> show all events
-    setFilteredEvents(events);
-    return;
+  function getClusterSeverity(sevCounts = {}) {
+    for (const level of severityOrder) {
+      if ((sevCounts[level] || 0) > 0) return level;
+    }
+    return "LOW";
   }
 
-  const q = searchQuery.trim().toLowerCase();
+  function formatClusterTime(ts) {
+    if (!ts) return "Unknown";
+    const d = new Date(ts);
+    // HH:MM:SS
+    return d.toTimeString().slice(0, 8);
+  }
 
-  const next = events.filter((ev) => {
-    const srcIp = (ev.sourceIp || ev.src || "").toLowerCase();
-    const dstIp = (ev.targetIp || ev.dst || "").toLowerCase();
-    const srcCountry = (ev.sourceCountry || "").toLowerCase();
-    const dstCountry = (ev.targetCountry || "").toLowerCase();
+  function summarizeAttackTypes(cluster) {
+    if (!cluster || !Array.isArray(cluster.events)) return "Multiple attack types";
+    const counts = {};
+    for (const ev of cluster.events) {
+      const name = ev.attackType || ev.type || "Attack";
+      counts[name] = (counts[name] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3) // top 3 types
+      .map(([name]) => name)
+      .join(", ");
+  }
+
+  // ---------------------- SEARCH FILTER FOR EVENTS ----------------------
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      // No search -> show all events
+      setFilteredEvents(events);
+      return;
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+
+    const next = events.filter((ev) => {
+      const srcIp = (ev.sourceIp || ev.src || "").toLowerCase();
+      const dstIp = (ev.targetIp || ev.dst || "").toLowerCase();
+      const srcCountry = (ev.sourceCountry || "").toLowerCase();
+      const dstCountry = (ev.targetCountry || "").toLowerCase();
+
+      return (
+        srcIp.includes(q) ||
+        dstIp.includes(q) ||
+        srcCountry.includes(q) ||
+        dstCountry.includes(q)
+      );
+    });
+
+    setFilteredEvents(next);
+  }, [events, searchQuery]);
+
+  const activeEvents = searchQuery.trim() ? filteredEvents : events;
+
+  // Helper: Check if event matches search text (IP or country)
+  function isEventMatchSearch(ev, query) {
+    if (!query) return false;
+    const q = query.toLowerCase();
+
+    const srcIp = ev.sourceIp?.toLowerCase() || "";
+    const dstIp = ev.targetIp?.toLowerCase() || "";
+    const srcCountry = ev.sourceCountry?.toLowerCase() || "";
+    const dstCountry = ev.targetCountry?.toLowerCase() || "";
 
     return (
       srcIp.includes(q) ||
@@ -458,30 +398,7 @@ useEffect(() => {
       srcCountry.includes(q) ||
       dstCountry.includes(q)
     );
-  });
-
-  setFilteredEvents(next);
-}, [events, searchQuery]);
-
-const activeEvents = searchQuery.trim() ? filteredEvents : events;
-
-// Helper: Check if event matches search text (IP or country)
-function isEventMatchSearch(ev, query) {
-  if (!query) return false;
-  const q = query.toLowerCase();
-
-  const srcIp = ev.sourceIp?.toLowerCase() || "";
-  const dstIp = ev.targetIp?.toLowerCase() || "";
-  const srcCountry = ev.sourceCountry?.toLowerCase() || "";
-  const dstCountry = ev.targetCountry?.toLowerCase() || "";
-
-  return (
-    srcIp.includes(q) ||
-    dstIp.includes(q) ||
-    srcCountry.includes(q) ||
-    dstCountry.includes(q)
-  );
-}
+  }
 
 
 
@@ -525,7 +442,7 @@ function isEventMatchSearch(ev, query) {
             color: "#e5f9ff",
           }}
         >
-           Real Time - Threat Visualizer
+          Real Time - Threat Visualizer
         </h1>
         <div
           style={{
@@ -552,7 +469,7 @@ function isEventMatchSearch(ev, query) {
           height: "calc(100vh - 24px - 24px - 40px)",
         }}
       >
-             
+
 
         {/* Threat panel */}
         <div
@@ -590,12 +507,12 @@ function isEventMatchSearch(ev, query) {
           </div>
           <ThreatBadge score={threatScore} />
           {/* Heatmap panel */}
-<div style={{ marginTop: 20 }}>
-  <LeftHeatmap events={activeEvents} maxRows={6} title="Attack Heatmap" />
-</div>
-          
+          <div style={{ marginTop: 20 }}>
+            <LeftHeatmap events={activeEvents} maxRows={6} title="Attack Heatmap" />
+          </div>
+
         </div>
-        
+
 
         {/* Globe */}
         <div
@@ -656,187 +573,187 @@ function isEventMatchSearch(ev, query) {
           <GlobePanel events={activeEvents} searchQuery={searchQuery} />
         </div>
 
-                
-      
-       
-      {/* Right stats */}
-      <div
-        style={{
-          gridColumn: "3 / 4",
-          gridRow: "1 / 2",
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          background: "transparent",
-          border: "none",
-          boxShadow: "none",
-          padding: 0,
-        }}
-      >
-        {/* Search bar ABOVE the System Stats card */}
-          
-  <div
-    style={{
-      marginBottom: 4,
-    alignSelf: "flex-start", // move bar towards the left side of the column
-    width: "80%",            // make it a bit shorter
-    maxWidth: 380,           // hard cap so it doesn't get too wide
-    position: "relative",
-    }}
-  >
-    {/* search icon */}
-    <span
-      style={{
-        position: "absolute",
-        left: 14,
-        top: "33%",
-        transform: "translateY(-54%)",
-        fontSize: 15,
-        color: "#9ca3af",
-        opacity: 0.85,
-        pointerEvents: "none",
-        zIndex: 1,
-      }}
-    >
-      🔍
-    </span>
-
-    <input
-      type="text"
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      placeholder="Search by IP or country..."
-      style={{
-        width: "100%",
-        borderRadius: 999,
-        padding: "10px 20px 10px 38px", // extra left room for icon
-        border: "1px solid rgba(148,163,184,0.35)",
-        background: "rgba(15,23,42,0.75)",
-        color: "#e5e7eb",
-        fontSize: 13,
-        outline: "none",
-        backdropFilter: "blur(10px)",
-      }}
-    />
-
-    <div
-      style={{
-        marginTop: 4,
-        fontSize: 12,
-        opacity: 0.75,
-      }}
-    >
-      Filters globe &amp; live attack feed by IP or country.
-    </div>
-  </div>
 
 
-        {/* System Stats card */}
+
+        {/* Right stats */}
         <div
           style={{
-            background: "rgba(15,23,42,0.95)",
-            borderRadius: 16,
-            border: "1px solid #22c55e33",
-            padding: "16px 20px 20px",
-            boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
-            overflowY: "auto",
+            gridColumn: "3 / 4",
+            gridRow: "1 / 2",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            background: "transparent",
+            border: "none",
+            boxShadow: "none",
+            padding: 0,
           }}
         >
-          <h2 style={{ margin: 0, marginBottom: 12, fontSize: 16 }}>
-            System Stats
-          </h2>
+          {/* Search bar ABOVE the System Stats card */}
 
-          <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-            <div>
-              <span style={{ opacity: 0.75 }}>Total Attacks</span>
-              <div style={{ fontSize: 28, fontWeight: 600 }}>
-                {totalAttacks}
-              </div>
-            </div>
+          <div
+            style={{
+              marginBottom: 4,
+              alignSelf: "flex-start", // move bar towards the left side of the column
+              width: "80%",            // make it a bit shorter
+              maxWidth: 380,           // hard cap so it doesn't get too wide
+              position: "relative",
+            }}
+          >
+            {/* search icon */}
+            <span
+              style={{
+                position: "absolute",
+                left: 14,
+                top: "33%",
+                transform: "translateY(-54%)",
+                fontSize: 15,
+                color: "#9ca3af",
+                opacity: 0.85,
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            >
+              🔍
+            </span>
 
-            <div style={{ marginTop: 12 }}>
-              <span style={{ opacity: 0.75 }}>High Severity</span>
-              <div style={{ fontSize: 22, fontWeight: 500 }}>
-                {highCount}
-              </div>
-            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by IP or country..."
+              style={{
+                width: "100%",
+                borderRadius: 999,
+                padding: "10px 20px 10px 38px", // extra left room for icon
+                border: "1px solid rgba(148,163,184,0.35)",
+                background: "rgba(15,23,42,0.75)",
+                color: "#e5e7eb",
+                fontSize: 13,
+                outline: "none",
+                backdropFilter: "blur(10px)",
+              }}
+            />
 
-            <div style={{ marginTop: 12 }}>
-              <span style={{ opacity: 0.75 }}>Critical</span>
-              <div style={{ fontSize: 22, fontWeight: 500 }}>
-                {criticalCount}
-              </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 12,
+                opacity: 0.75,
+              }}
+            >
+              Filters globe &amp; live attack feed by IP or country.
             </div>
           </div>
 
-          {/* Emerging Clusters – rich card layout like before */}
-          {clusters.length > 0 && (
-            <div style={{ marginTop: 18 }}>
-              <div style={{ opacity: 0.75, marginBottom: 6 }}>
-                Emerging Clusters
+
+          {/* System Stats card */}
+          <div
+            style={{
+              background: "rgba(15,23,42,0.95)",
+              borderRadius: 16,
+              border: "1px solid #22c55e33",
+              padding: "16px 20px 20px",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+              overflowY: "auto",
+            }}
+          >
+            <h2 style={{ margin: 0, marginBottom: 12, fontSize: 16 }}>
+              System Stats
+            </h2>
+
+            <div style={{ fontSize: 14, lineHeight: 1.8 }}>
+              <div>
+                <span style={{ opacity: 0.75 }}>Total Attacks</span>
+                <div style={{ fontSize: 28, fontWeight: 600 }}>
+                  {totalAttacks}
+                </div>
               </div>
-              {clusters.map((cl) => (
-                <div
-                  key={cl.key}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "stretch",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    background: "rgba(15,118,110,0.25)",
-                    marginBottom: 8,
-                    fontSize: 12,
-                  }}
-                >
-                  {/* left: text details */}
-                  <div style={{ flex: 1, paddingRight: 10 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      Cluster: {cl.country || "Unknown"}
-                    </div>
 
-                    <div style={{ opacity: 0.85 }}>
-                      {cl.count} attacks · {summarizeAttackTypes(cl)}
-                    </div>
+              <div style={{ marginTop: 12 }}>
+                <span style={{ opacity: 0.75 }}>High Severity</span>
+                <div style={{ fontSize: 22, fontWeight: 500 }}>
+                  {highCount}
+                </div>
+              </div>
 
-                    <div style={{ opacity: 0.7, marginTop: 4 }}>
-                      First seen: {formatClusterTime(cl.firstSeen)} · Last
-                      seen: {formatClusterTime(cl.lastSeen)}
-                    </div>
-                  </div>
+              <div style={{ marginTop: 12 }}>
+                <span style={{ opacity: 0.75 }}>Critical</span>
+                <div style={{ fontSize: 22, fontWeight: 500 }}>
+                  {criticalCount}
+                </div>
+              </div>
+            </div>
 
-                  {/* right: big count + severity label */}
+            {/* Emerging Clusters – rich card layout like before */}
+            {clusters.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ opacity: 0.75, marginBottom: 6 }}>
+                  Emerging Clusters
+                </div>
+                {clusters.map((cl) => (
                   <div
+                    key={cl.key}
                     style={{
-                      minWidth: 60,
-                      textAlign: "right",
                       display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
+                      justifyContent: "space-between",
+                      alignItems: "stretch",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      background: "rgba(15,118,110,0.25)",
+                      marginBottom: 8,
+                      fontSize: 12,
                     }}
                   >
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>
-                      {cl.count}
+                    {/* left: text details */}
+                    <div style={{ flex: 1, paddingRight: 10 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Cluster: {cl.country || "Unknown"}
+                      </div>
+
+                      <div style={{ opacity: 0.85 }}>
+                        {cl.count} attacks · {summarizeAttackTypes(cl)}
+                      </div>
+
+                      <div style={{ opacity: 0.7, marginTop: 4 }}>
+                        First seen: {formatClusterTime(cl.firstSeen)} · Last
+                        seen: {formatClusterTime(cl.lastSeen)}
+                      </div>
                     </div>
+
+                    {/* right: big count + severity label */}
                     <div
                       style={{
-                        fontSize: 11,
-                        letterSpacing: 0.5,
-                        marginTop: 2,
-                        opacity: 0.9,
+                        minWidth: 60,
+                        textAlign: "right",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
                       }}
                     >
-                      {getClusterSeverity(cl.sevCounts)}
+                      <div style={{ fontSize: 20, fontWeight: 700 }}>
+                        {cl.count}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                          marginTop: 2,
+                          opacity: 0.9,
+                        }}
+                      >
+                        {getClusterSeverity(cl.sevCounts)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Bottom feed */}
+        {/* Bottom feed */}
 
         <div
           style={{
@@ -861,7 +778,7 @@ function isEventMatchSearch(ev, query) {
               fontSize: 13,
             }}
           >
-                       {activeEvents.map((event, idx) => {
+            {activeEvents.map((event, idx) => {
               const isMatch = isEventMatchSearch(event, searchQuery);
 
               return (
@@ -882,8 +799,8 @@ function isEventMatchSearch(ev, query) {
                         event.severity === "CRITICAL"
                           ? "#f97373"
                           : event.severity === "HIGH"
-                          ? "#facc15"
-                          : "#22c55e",
+                            ? "#facc15"
+                            : "#22c55e",
                       fontWeight: isMatch ? 700 : 400,
                     }}
                   >
