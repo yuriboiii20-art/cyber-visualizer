@@ -20,7 +20,7 @@ Real-time 3D cyber threat visualization platform built with React, Three.js, and
 -   **Three.js / React Globe.gl** (3D Visualization)
 -   **Socket.IO Client** (Real-time communication)
 -   **Supabase Client** (Backend as a Service)
-
+---
 ### Backend
 -   **Node.js & Express**
 -   **Socket.IO** (WebSocket Server)
