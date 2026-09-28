@@ -1,7 +1,7 @@
 # Cyber Visualizer
 
 Real-time 3D cyber threat visualization platform built with React, Three.js, and Node.js. visualize global cyber attacks and network traffic on an interactive globe.
-
+----
 ![Project Status](https://img.shields.io/badge/status-active-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
