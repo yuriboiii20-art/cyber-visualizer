@@ -27,7 +27,7 @@ Real-time 3D cyber threat visualization platform built with React, Three.js, and
 -   **CORS** (Cross-Origin Resource Sharing)
 
 ## 📦 Installation & Setup
-
+-------
 1.  **Clone the repository**
     ```bash
     git clone https://github.com/yuriboiii20-art/cyber-visualizer.git
