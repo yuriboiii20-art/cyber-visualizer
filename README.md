@@ -14,7 +14,7 @@ Real-time 3D cyber threat visualization platform built with React, Three.js, and
 -   **Supabase Integration**: Ready for database connections and authentication.
 
 ## 🛠️ Tech Stack
-
+-------
 ### Frontend
 -   **React** (v19)
 -   **Three.js / React Globe.gl** (3D Visualization)
