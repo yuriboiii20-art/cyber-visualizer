@@ -6,7 +6,7 @@ Real-time 3D cyber threat visualization platform built with React, Three.js, and
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ## 🚀 Features
-----
+
 -   **Interactive 3D Globe**: Visualizes threats geographically using `react-globe.gl` and `three.js`.
 -   **Real-time Data**: WebSocket integration (`socket.io`) for live threat updates.
 -   **Modern Frontend**: Built with React 19.
